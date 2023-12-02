@@ -17,8 +17,8 @@ export default function App() {
       <QueryClientProvider client={queryClient}>
         <BrowserRouter>
           <Routes>
-            <Route index element={<Explorer />} />
-            <Route path="*" element={<Navigate to="/" />} />
+            <Route path="*" element={<Explorer  />} />
+            <Route path="*" element={<Navigate  />} />
           </Routes>
         </BrowserRouter>
         <ReactQueryDevtools initialIsOpen={false} />

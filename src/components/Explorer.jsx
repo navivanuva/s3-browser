@@ -1,4 +1,4 @@
-import React, { useEffect } from "react";
+import React, { useEffect,useState } from "react";
 import PropTypes from "prop-types";
 import { Link as ReactRouterLink, useSearchParams } from "react-router-dom";
 import {
@@ -18,24 +18,34 @@ import {
   Td,
   Spinner,
   Icon,
+  Button,
 } from "@chakra-ui/react";
 import { GrHome, GrFolder, GrDocument, GrFormNext } from "react-icons/gr";
-import { useContents } from "../hooks/useContents";
+import { useContents,uploadFile, deleteFile} from "../hooks/useContents";
 import { sanitizePrefix, formatFileSize } from "../helpers";
 
-export default function Explorer() {
+export default function Explorer(prefixfromOutside) {
   const [searchParams] = useSearchParams();
   const prefix = sanitizePrefix(searchParams.get("prefix") || "");
 
-  useEffect(() => {
-    document.title = process.env.BUCKET_NAME;
-  }, []);
+  const [file, setFile] = useState(null);
+
+  const [reload, setReload] = useState(false);
+  const handleFileChange = (e) => {
+    const file = e.target.files[0];
+    setFile(file);
+  };
 
   return (
     <Box maxW="4xl" m={3} mt={1}>
+
       <VStack alignItems="left">
+      <div>
+        <input type="file" onChange={handleFileChange} />
+        <button onClick={(e)=> {e.preventDefault(); uploadFile(file,prefix,setReload)}}>Upload</button>
+      </div>
         <Navigation prefix={prefix} />
-        <Listing prefix={prefix} />
+        <Listing prefix={prefix} reload={reload} setReload={setReload} />
       </VStack>
     </Box>
   );
@@ -47,7 +57,7 @@ function Navigation({ prefix }) {
     .slice(0, -1)
     .map((item, index, items) => ({
       name: `${item}/`,
-      url: `/?prefix=${items.slice(0, index + 1).join("/")}/`,
+      url: `?prefix=${items.slice(0, index + 1).join("/")}/`,
       isCurrent: index == items.length - 1,
     }));
 
@@ -56,28 +66,20 @@ function Navigation({ prefix }) {
       borderWidth="1px"
       shadow="md"
       p={3}
+      marginBottom={"0px !important"}
       background="gray.100"
       spacing={1}
       separator={<Icon as={GrFormNext} verticalAlign="middle" />}
     >
-      <BreadcrumbItem key="root" isCurrentPage={folders.length == 0}>
-        {folders.length == 0 ? (
-          <Text color="gray.400">
-            <Icon as={GrHome} mr={2} verticalAlign="text-top" />
-            {process.env.BUCKET_NAME}
-          </Text>
-        ) : (
-          <BreadcrumbLink as={ReactRouterLink} to="" aria-label="bucket root">
-            <Icon as={GrHome} verticalAlign="text-top" />
-          </BreadcrumbLink>
-        )}
+      <BreadcrumbItem marginBottom={"0px !important"} key="root" isCurrentPage={folders.length == 0}>
+
       </BreadcrumbItem>
       {folders.map((item) => (
-        <BreadcrumbItem key={item.url} isCurrentPage={item.isCurrent}>
+        <BreadcrumbItem  marginBottom={"0px !important"} key={item.url} isCurrentPage={item.isCurrent}>
           {item.isCurrent ? (
-            <Text color="gray.400">{item.name}</Text>
+            <Text marginBottom={"0px !important"} color="gray.400">{item.name}</Text>
           ) : (
-            <BreadcrumbLink as={ReactRouterLink} to={item.url}>
+            <BreadcrumbLink marginBottom={"0px !important"} as={ReactRouterLink} to={item.url}>
               {item.name}
             </BreadcrumbLink>
           )}
@@ -91,9 +93,18 @@ Navigation.propTypes = {
   prefix: PropTypes.string,
 };
 
-function Listing({ prefix }) {
-  const { status, data, error } = useContents(prefix);
+function Listing({ prefix, reload,setReload}) {
+  const { status, data, error,refetch } = useContents(prefix);
   console.debug(`Query status: ${status}`);
+
+  useEffect(()=>{
+    console.log("reload",reload);
+    if(reload){
+      refetch();
+      setReload(false);
+    }
+  })
+
 
   return (
     <>
@@ -169,6 +180,7 @@ function Listing({ prefix }) {
                           </Td>
                           <Td>{item.lastModified.toLocaleString()}</Td>
                           <Td isNumeric>{formatFileSize(item.size)}</Td>
+                          <Td><Button onClick={()=> deleteFile(item.name,prefix,setReload)}></Button></Td>
                         </Tr>
                       ))}
                     </>
