@@ -1,5 +1,8 @@
+/* eslint-disable no-unused-vars */
+import { useToast } from "@chakra-ui/react";
 import { useQuery } from "@tanstack/react-query";
-import { S3Client, ListObjectsV2Command, PutObjectCommand,DeleteObjectCommand } from "@aws-sdk/client-s3";
+import { S3Client, ListObjectsV2Command, PutObjectCommand,DeleteObjectCommand,HeadObjectCommand } from "@aws-sdk/client-s3";
+
 
 const s3Client = new S3Client({
   region: process.env.AWS_REGION,
@@ -48,7 +51,6 @@ export const useContents = (prefix) => {
 };
 
 export const uploadFile = (file, prefix,setReload) => {
-
   try {
     const data = s3Client.send(
       new PutObjectCommand({
@@ -58,7 +60,6 @@ export const uploadFile = (file, prefix,setReload) => {
     })
     )
     .then((data) => {
-      alert(`${file.name} uploaded successfully.`);
       setReload(true);
       
     })
@@ -72,8 +73,6 @@ export const uploadFile = (file, prefix,setReload) => {
 }
 
 export const deleteFile = (filename,prefix,setReload) => {
-  console.log(prefix);
-  console.log(filename);
   try {
     const data = s3Client.send(
       new DeleteObjectCommand({
@@ -82,16 +81,87 @@ export const deleteFile = (filename,prefix,setReload) => {
     })
     )
     .then((data) => {
-      alert(`${filename} deleted successfully.`);
       setReload(true);
       
     })
     .catch((err) => {
-      console.log("Error", err);
       alert("Error", err);
 
     });
   } catch (err) {
-    console.log("Error", err);
+    alert("Error", err);
+  }
+}
+
+
+export const existsFolder = (foldername, prefix) => {
+  try {
+    const data = s3Client.send(
+      new HeadObjectCommand({
+        Bucket: process.env.BUCKET_NAME,
+        Key: `${prefix}`,
+    })
+    )
+    .then((data) => {
+      return true;
+    })
+    .catch((err) => {
+      return false;
+    });
+  } catch (err) {
+    alert("Error", err);
+  }
+}
+
+export const createFolder = (foldername,prefix,setReload) => {
+
+  try{
+    const data = s3Client.send(
+      new PutObjectCommand({
+        Bucket: process.env.BUCKET_NAME,
+        Key: `${prefix}${foldername}/`,
+    })
+    )
+    .then((data) => {
+      setReload(true);
+      
+    })
+  }
+  catch(err){
+    alert("Error", err);
+  }
+}
+
+export const createFolderIfNotExist = (foldername,prefix,setReload) => {
+  if(!existsFolder(foldername,prefix)){
+    createFolder(foldername,prefix,setReload);
+  }
+}
+
+export const emptyBucket = async(foldername,prefix,setReload) => {
+
+  let list =  await s3Client.send(
+    new ListObjectsV2Command({
+      Bucket: process.env.BUCKET_NAME,
+      Prefix: `${prefix}${foldername}`,
+      Delimiter: "/",
+    })
+  )
+  if(list.KeyCount){
+
+    for(let i=0;i<list.KeyCount;i++){
+
+      const deleteCommand = new DeleteObjectCommand({
+        Bucket: process.env.BUCKET_NAME,
+        Key : list.Contents[i].Key
+ 
+      });
+      let deleted = await s3Client.send(deleteCommand);
+
+      if(deleted.Errors){
+        alert(`Error deleting ${list.Contents[i].Key}`);
+      }
+    }
+    setReload(true);
   }
 }

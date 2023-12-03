@@ -1,3 +1,4 @@
+
 import React, { useEffect,useState } from "react";
 import PropTypes from "prop-types";
 import { Link as ReactRouterLink, useSearchParams } from "react-router-dom";
@@ -18,19 +19,25 @@ import {
   Td,
   Spinner,
   Icon,
+  IconButton,
   Button,
+  useDisclosure,
 } from "@chakra-ui/react";
-import { GrHome, GrFolder, GrDocument, GrFormNext } from "react-icons/gr";
-import { useContents,uploadFile, deleteFile} from "../hooks/useContents";
+import { GrFolder, GrDocument, GrFormNext } from "react-icons/gr";
+import { useContents,uploadFile} from "../hooks/useContents";
 import { sanitizePrefix, formatFileSize } from "../helpers";
+import { AddIcon, CloseIcon } from "@chakra-ui/icons";
+import DeleteDialog from "./DeleteDialog";
+import NewFolderDialog from "./NewFolderDialog";
 
-export default function Explorer(prefixfromOutside) {
+export default function Explorer() {
+
   const [searchParams] = useSearchParams();
   const prefix = sanitizePrefix(searchParams.get("prefix") || "");
-
   const [file, setFile] = useState(null);
-
   const [reload, setReload] = useState(false);
+
+
   const handleFileChange = (e) => {
     const file = e.target.files[0];
     setFile(file);
@@ -40,10 +47,15 @@ export default function Explorer(prefixfromOutside) {
     <Box maxW="4xl" m={3} mt={1}>
 
       <VStack alignItems="left">
-      <div>
-        <input type="file" onChange={handleFileChange} />
-        <button onClick={(e)=> {e.preventDefault(); uploadFile(file,prefix,setReload)}}>Upload</button>
-      </div>
+        <Box display={"flex"} alignItems={"center"}>
+          <Box flexGrow={1}>
+            <input width={"100%"} type="file" onChange={handleFileChange} />
+          </Box>
+          <Box>
+            <Button colorScheme="blue" onClick={(e)=> {e.preventDefault(); uploadFile(file,prefix,setReload)}}>Upload</Button>
+          </Box>
+        </Box>
+        <hr style={{marginBottom : 20}}></hr>
         <Navigation prefix={prefix} />
         <Listing prefix={prefix} reload={reload} setReload={setReload} />
       </VStack>
@@ -95,7 +107,21 @@ Navigation.propTypes = {
 
 function Listing({ prefix, reload,setReload}) {
   const { status, data, error,refetch } = useContents(prefix);
-  console.debug(`Query status: ${status}`);
+
+  const { isOpen : isDeleteDialogOpen, onOpen : onDeleteDialogOpen, onClose : onDeleteDialogClose } = useDisclosure()
+  const { isOpen : isNewFolderDialogOpen, onOpen : onNewFolderDialogOpen, onClose : onNewFolderDialogClose } = useDisclosure()
+  const [isFile, setIsFile] = useState(true);
+
+  const [itemName, setItemName] = useState("");
+
+  
+
+  const onOpenModalDelete = (itemName,isFile) => { 
+
+    setItemName(() => {return itemName});
+    setIsFile(() => {return isFile});
+    onDeleteDialogOpen();
+  }
 
   useEffect(()=>{
     console.log("reload",reload);
@@ -108,18 +134,24 @@ function Listing({ prefix, reload,setReload}) {
 
   return (
     <>
+
       <Heading as="h3" size="lg" mt={2} mb={2} fontWeight="light">
         {prefix
           ? `${prefix.split("/").slice(-2, -1)}/`
           : process.env.BUCKET_NAME}
       </Heading>
+      <Box mb={2}>
+        <Button onClick={onNewFolderDialogOpen} mb={1} colorScheme="green" size={"sm"} rightIcon={<AddIcon />}>New Folder </Button>
+      </Box>
       <Box borderWidth="1px" shadow="md">
+        
         <Table variant="simple" size="sm">
           <Thead background="gray.200">
             <Tr>
               <Th>Name</Th>
               <Th>Last modified</Th>
               <Th>Size</Th>
+              <Th>Delete</Th>
             </Tr>
           </Thead>
           <Tbody>
@@ -151,8 +183,8 @@ function Listing({ prefix, reload,setReload}) {
                   return (
                     <>
                       {data?.folders.map((item) => (
-                        <Tr key={item.path}>
-                          <Td>
+                        <Tr key={item.path} >
+                          <Td py={4}>
                             <Icon
                               as={GrFolder}
                               mr={1}
@@ -164,11 +196,14 @@ function Listing({ prefix, reload,setReload}) {
                           </Td>
                           <Td>–</Td>
                           <Td isNumeric>–</Td>
+                          <Td>
+                            <IconButton onClick={() => onOpenModalDelete(item.name,false)} icon={<CloseIcon />}  colorScheme='red'  size='sm' />
+                          </Td>
                         </Tr>
                       ))}
                       {data?.objects.map((item) => (
                         <Tr key={item.path}>
-                          <Td>
+                          <Td py={4}> 
                             <Icon
                               as={GrDocument}
                               mr={1}
@@ -180,7 +215,9 @@ function Listing({ prefix, reload,setReload}) {
                           </Td>
                           <Td>{item.lastModified.toLocaleString()}</Td>
                           <Td isNumeric>{formatFileSize(item.size)}</Td>
-                          <Td><Button onClick={()=> deleteFile(item.name,prefix,setReload)}></Button></Td>
+                          <Td>
+                            <IconButton onClick={() => onOpenModalDelete(item.name,true)} icon={<CloseIcon />}  colorScheme='red'  size='sm' />
+                          </Td>
                         </Tr>
                       ))}
                     </>
@@ -189,11 +226,33 @@ function Listing({ prefix, reload,setReload}) {
             })()}
           </Tbody>
         </Table>
+        
       </Box>
+      
+      <NewFolderDialog
+        isOpen={isNewFolderDialogOpen} 
+        onOpen={onNewFolderDialogOpen} 
+        onClose={onNewFolderDialogClose} 
+        prefix={prefix} 
+        setReload={setReload}
+      />
+
+      <DeleteDialog 
+        isOpen={isDeleteDialogOpen} 
+        onOpen={onDeleteDialogOpen} 
+        onClose={onDeleteDialogClose} 
+        itemName={itemName} 
+        prefix={prefix} 
+        isFile={isFile} 
+        setReload={setReload} 
+      />
+
     </>
   );
 }
 
 Listing.propTypes = {
   prefix: PropTypes.string,
+  reload: PropTypes.bool,
+  setReload: PropTypes.func,
 };
