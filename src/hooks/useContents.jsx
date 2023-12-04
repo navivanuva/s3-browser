@@ -1,8 +1,11 @@
 /* eslint-disable no-unused-vars */
 import { useToast } from "@chakra-ui/react";
 import { useQuery } from "@tanstack/react-query";
-import { S3Client, ListObjectsV2Command, PutObjectCommand,DeleteObjectCommand,HeadObjectCommand } from "@aws-sdk/client-s3";
+import { S3Client, ListObjectsV2Command, PutObjectCommand,DeleteObjectCommand,HeadObjectCommand,GetObjectCommand } from "@aws-sdk/client-s3";
+import {getSignedUrl} from "@aws-sdk/s3-request-presigner";
 
+
+const defaultPrefix = "media/project_files/";
 
 const s3Client = new S3Client({
   region: process.env.AWS_REGION,
@@ -14,7 +17,19 @@ const s3Client = new S3Client({
 
 const excludeRegex = new RegExp(process.env.EXCLUDE_PATTERN || /(?!)/);
 
-const listContents = async (prefix) => {
+
+export const URLFormatter = (value ) => {
+
+  //remove the prefix from the url
+  let url = value.replace(defaultPrefix,"")
+
+  return url;
+}
+const listContents = async (prefixPart) => {
+
+  const prefix = `${defaultPrefix}${prefixPart}`
+
+  console.log(prefix)
   console.debug("Retrieving data from AWS SDK");
   const data = await s3Client.send(
     new ListObjectsV2Command({
@@ -46,11 +61,30 @@ const listContents = async (prefix) => {
   };
 };
 
+export const createPresignedUrl = async (filename, prefixPart) => {
+  const prefix = `${defaultPrefix}${prefixPart}`
+  try {
+
+    const getObjectParams = {
+      Bucket: process.env.BUCKET_NAME,
+      Key: `${prefix}${filename}`,
+    };
+    const command = new GetObjectCommand(getObjectParams);
+
+    const url = await getSignedUrl(s3Client, command, { expiresIn: 3600 });
+    return url;
+  } catch (err) {
+    alert("Error", err);
+    return null;
+  }
+}
+
 export const useContents = (prefix) => {
   return useQuery(["contents", prefix], () => listContents(prefix));
 };
 
-export const uploadFile = (file, prefix,setReload) => {
+export const uploadFile = (file, prefixPart,setReload) => {
+  const prefix = `${defaultPrefix}${prefixPart}`
   try {
     const data = s3Client.send(
       new PutObjectCommand({
@@ -72,7 +106,8 @@ export const uploadFile = (file, prefix,setReload) => {
   }
 }
 
-export const deleteFile = (filename,prefix,setReload) => {
+export const deleteFile = (filename,prefixPart,setReload) => {
+  const prefix = `${defaultPrefix}${prefixPart}`
   try {
     const data = s3Client.send(
       new DeleteObjectCommand({
@@ -94,7 +129,8 @@ export const deleteFile = (filename,prefix,setReload) => {
 }
 
 
-export const existsFolder = (foldername, prefix) => {
+export const existsFolder = (foldername, prefixPart) => {
+  const prefix = `${defaultPrefix}${prefixPart}`
   try {
     const data = s3Client.send(
       new HeadObjectCommand({
@@ -113,8 +149,8 @@ export const existsFolder = (foldername, prefix) => {
   }
 }
 
-export const createFolder = (foldername,prefix,setReload) => {
-
+export const createFolder = (foldername,prefixPart,setReload) => {
+  const prefix = `${defaultPrefix}${prefixPart}`
   try{
     const data = s3Client.send(
       new PutObjectCommand({
@@ -138,8 +174,8 @@ export const createFolderIfNotExist = (foldername,prefix,setReload) => {
   }
 }
 
-export const emptyBucket = async(foldername,prefix,setReload) => {
-
+export const emptyBucket = async(foldername,prefixPart,setReload) => {
+  const prefix = `${defaultPrefix}${prefixPart}`
   let list =  await s3Client.send(
     new ListObjectsV2Command({
       Bucket: process.env.BUCKET_NAME,

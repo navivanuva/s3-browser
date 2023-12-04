@@ -24,12 +24,11 @@ import {
   useDisclosure,
 } from "@chakra-ui/react";
 import { GrFolder, GrDocument, GrFormNext } from "react-icons/gr";
-import { useContents,uploadFile} from "../hooks/useContents";
+import { useContents,uploadFile, createPresignedUrl, URLFormatter} from "../hooks/useContents";
 import { sanitizePrefix, formatFileSize } from "../helpers";
 import { AddIcon, CloseIcon } from "@chakra-ui/icons";
 import DeleteDialog from "./DeleteDialog";
 import NewFolderDialog from "./NewFolderDialog";
-
 export default function Explorer() {
 
   const [searchParams] = useSearchParams();
@@ -131,6 +130,16 @@ function Listing({ prefix, reload,setReload}) {
     }
   })
 
+  const onItemClicked = async(file,prefix) => {
+
+    let url = await createPresignedUrl(file,prefix);
+    console.log("url",url);
+    if(!url){
+      alert("Error");
+      return;
+    }
+    window.open(url);
+  }
 
   return (
     <>
@@ -190,7 +199,7 @@ function Listing({ prefix, reload,setReload}) {
                               mr={1}
                               verticalAlign="text-top"
                             />
-                            <Link as={ReactRouterLink} to={item.url}>
+                            <Link as={ReactRouterLink} to={URLFormatter(item.url)}>
                               {item.name}
                             </Link>
                           </Td>
@@ -203,15 +212,17 @@ function Listing({ prefix, reload,setReload}) {
                       ))}
                       {data?.objects.map((item) => (
                         <Tr key={item.path}>
-                          <Td py={4}> 
-                            <Icon
-                              as={GrDocument}
-                              mr={1}
-                              verticalAlign="text-top"
-                            />
-                            <Link href={item.url} isExternal>
-                              {item.name}
-                            </Link>
+                          <Td py={4}>
+                            <Box display={"flex"} alignItems={"center"}>
+                              <Icon
+                                as={GrDocument}
+                                mr={1}
+                                verticalAlign="text-top"
+                              />
+                              <Text mb={0} onClick={() => onItemClicked(item.name,prefix)} cursor={"pointer"} >
+                                {item.name}
+                              </Text>
+                            </Box>
                           </Td>
                           <Td>{item.lastModified.toLocaleString()}</Td>
                           <Td isNumeric>{formatFileSize(item.size)}</Td>
