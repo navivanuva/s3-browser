@@ -26,9 +26,12 @@ import {
 import { GrFolder, GrDocument, GrFormNext } from "react-icons/gr";
 import { useContents,uploadFile, createPresignedUrl, URLFormatter} from "../hooks/useContents";
 import { sanitizePrefix, formatFileSize } from "../helpers";
-import { AddIcon, CloseIcon } from "@chakra-ui/icons";
-import DeleteDialog from "./DeleteDialog";
-import NewFolderDialog from "./NewFolderDialog";
+import { AddIcon, CloseIcon, EditIcon } from "@chakra-ui/icons";
+import DeleteDialog from "./DialogDelete";
+import NewFolderDialog from "./DialogNewFolder";
+import DialogRenameFileAndFolder from "./DialogRenameFile";
+
+
 export default function Explorer() {
 
   const [searchParams] = useSearchParams();
@@ -43,7 +46,7 @@ export default function Explorer() {
   };
 
   return (
-    <Box maxW="4xl" m={3} mt={1}>
+    <Box maxW="5xl" m={3} mt={1}>
 
       <VStack alignItems="left">
         <Box display={"flex"} alignItems={"center"}>
@@ -109,6 +112,7 @@ function Listing({ prefix, reload,setReload}) {
 
   const { isOpen : isDeleteDialogOpen, onOpen : onDeleteDialogOpen, onClose : onDeleteDialogClose } = useDisclosure()
   const { isOpen : isNewFolderDialogOpen, onOpen : onNewFolderDialogOpen, onClose : onNewFolderDialogClose } = useDisclosure()
+  const { isOpen : isRenameDialogOpen, onOpen : onRenameDialogOpen, onClose : onRenameDialogClose } = useDisclosure()
   const [isFile, setIsFile] = useState(true);
 
   const [itemName, setItemName] = useState("");
@@ -122,8 +126,13 @@ function Listing({ prefix, reload,setReload}) {
     onDeleteDialogOpen();
   }
 
+  const onOpenModalRename = (itemName,isFile) => {
+    setItemName(() => {return itemName});
+    setIsFile(() => {return isFile});
+    onRenameDialogOpen();
+  }
+
   useEffect(()=>{
-    console.log("reload",reload);
     if(reload){
       refetch();
       setReload(false);
@@ -158,6 +167,7 @@ function Listing({ prefix, reload,setReload}) {
           <Thead background="gray.200">
             <Tr>
               <Th>Name</Th>
+              <Th>Rename</Th>
               <Th>Last modified</Th>
               <Th>Size</Th>
               <Th>Delete</Th>
@@ -203,6 +213,9 @@ function Listing({ prefix, reload,setReload}) {
                               {item.name}
                             </Link>
                           </Td>
+                          <Td>
+                          <IconButton onClick={() => onOpenModalRename(item.name,false) } icon={<EditIcon />}  colorScheme='gray'  size='sm' />
+                          </Td>
                           <Td>–</Td>
                           <Td isNumeric>–</Td>
                           <Td>
@@ -210,27 +223,39 @@ function Listing({ prefix, reload,setReload}) {
                           </Td>
                         </Tr>
                       ))}
-                      {data?.objects.map((item) => (
-                        <Tr key={item.path}>
-                          <Td py={4}>
-                            <Box display={"flex"} alignItems={"center"}>
-                              <Icon
-                                as={GrDocument}
-                                mr={1}
-                                verticalAlign="text-top"
-                              />
-                              <Text mb={0} onClick={() => onItemClicked(item.name,prefix)} cursor={"pointer"} >
-                                {item.name}
-                              </Text>
-                            </Box>
-                          </Td>
-                          <Td>{item.lastModified.toLocaleString()}</Td>
-                          <Td isNumeric>{formatFileSize(item.size)}</Td>
-                          <Td>
-                            <IconButton onClick={() => onOpenModalDelete(item.name,true)} icon={<CloseIcon />}  colorScheme='red'  size='sm' />
-                          </Td>
-                        </Tr>
-                      ))}
+                      {data?.objects.map((item) => {
+
+                        if(item.name === ""){
+                          return;
+                        }
+                        else{
+                          return(
+                            <Tr key={item.path}>
+                              <Td py={4}>
+                                <Box display={"flex"} alignItems={"center"}>
+                                  <Icon
+                                    as={GrDocument}
+                                    mr={1}
+                                    verticalAlign="text-top"
+                                  />
+                                
+                                  <Text mb={0} onClick={() => onItemClicked(item.name,prefix)} cursor={"pointer"} >
+                                    {item.name}
+                                  </Text>
+                                </Box>
+                              </Td>
+                              <Td>
+                                <IconButton onClick={() => onOpenModalRename(item.name,true) } icon={<EditIcon />}  colorScheme='gray'  size='sm' />
+                              </Td>
+                              <Td>{item.lastModified.toLocaleString()}</Td>
+                              <Td isNumeric>{formatFileSize(item.size)}</Td>
+                              <Td>
+                                <IconButton onClick={() => onOpenModalDelete(item.name,true)} icon={<CloseIcon />}  colorScheme='red'  size='sm' />
+                              </Td>
+                            </Tr>
+                          )
+                        }
+                      })}
                     </>
                   );
               }
@@ -256,6 +281,16 @@ function Listing({ prefix, reload,setReload}) {
         prefix={prefix} 
         isFile={isFile} 
         setReload={setReload} 
+      />
+
+      <DialogRenameFileAndFolder
+        isOpen={isRenameDialogOpen} 
+        onOpen={onRenameDialogOpen} 
+        onClose={onRenameDialogClose} 
+        prefix={prefix} 
+        filename={itemName}
+        isFile={isFile} 
+        setReload={setReload}
       />
 
     </>

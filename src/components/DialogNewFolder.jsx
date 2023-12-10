@@ -20,7 +20,6 @@ export default function NewFolderDialog({isOpen,onClose,prefix,setReload}){
 	const [folderName,setFolderName] = React.useState("");
 	
 	const onNewFolderModalConfirm = () => {
-		console.log("New Folder")
 		createFolderIfNotExist(folderName,prefix,setReload);
 		onClose();
 	}
