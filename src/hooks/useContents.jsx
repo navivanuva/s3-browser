@@ -5,8 +5,8 @@ import { S3Client, ListObjectsV2Command, PutObjectCommand,DeleteObjectCommand,He
 import {getSignedUrl} from "@aws-sdk/s3-request-presigner";
 
 
-//const defaultPrefix = "media/project_files/";
-const defaultPrefix = "";
+const defaultPrefix = "media/project_files/";
+//const defaultPrefix = "";
 const s3Client = new S3Client({
   region: process.env.AWS_REGION,
   credentials: {
@@ -25,9 +25,16 @@ export const URLFormatter = (value ) => {
 
   return url;
 }
-const listContents = async (prefixPart) => {
+const listContents = async (prefixPart, dp=true) => {
 
-  const prefix = `${defaultPrefix}${prefixPart}`
+  let prefix = `${defaultPrefix}${prefixPart}`
+
+  if(dp){
+    prefix = `${defaultPrefix}${prefixPart}`
+  }
+  else{
+    prefix = `${prefixPart}`
+  }
 
   console.debug("Retrieving data from AWS SDK");
   const data = await s3Client.send(
@@ -37,7 +44,7 @@ const listContents = async (prefixPart) => {
       Delimiter: "/",
     })
   );
-  console.debug(`Received data: ${JSON.stringify(data, null, 2)}`);
+  //console.debug(`Received data: ${JSON.stringify(data, null, 2)}`);
   return {
     folders:
       data.CommonPrefixes?.filter(
@@ -129,7 +136,7 @@ export const renameFolder = async (foldername,newFoldername,prefixPart,setReload
   const prefix = `${defaultPrefix}${prefixPart}`
   const newFolderPath = `${prefix}${newFoldername}/`;
 
-  let list = await listContents(`${prefix}${foldername}`);
+  let list = await listContents(`${prefix}${foldername}`, false);
 
   let folders = list.folders;
   let files = list.objects;
@@ -150,7 +157,9 @@ export const renameFolder = async (foldername,newFoldername,prefixPart,setReload
           CopySource: `${process.env.BUCKET_NAME}/${files[i].path}`,
           Key: `${newFolderPath}${files[i].name}`,
       }))
-      if(data.CopyObjectResult){
+      console.log("data",data);
+
+      if(data.$metadata.httpStatusCode == 200){
         const data = await s3Client.send(
           new DeleteObjectCommand({
             Bucket: process.env.BUCKET_NAME,
@@ -163,75 +172,71 @@ export const renameFolder = async (foldername,newFoldername,prefixPart,setReload
       let newKey = `${newFolderPath}${folders[i].name}`
       let cif = await createNewFolder( currentPath,newKey);
       let currentPath = folders[i].path;
-      loopInternalFolder(currentPath,folders[i],newFolderPath);
+      await loopInternalFolder(currentPath,folders[i],newFolderPath);
     }
     
-    const data = await s3Client.send(
-      new DeleteObjectCommand({
-        Bucket: process.env.BUCKET_NAME,
-        Key: `${prefix}${foldername}/`,
-        Delimiter: "/",
-    }))
+    //  emptyBucket(foldername,prefixPart,setReload);
+    setReload(true);
 
   }catch(err){
     console.log("Error", err);
   }
 
-  setReload(true);
+  
 }
 
 
 
 const loopInternalFolder = async (currentPath,folder,newFolderPath) => {
-  let folderEmpty = false
-  let newKey = `${newFolderPath}${folder.name}`
-  let newPath = newKey;
 
-  while(!folderEmpty){
-    let list = await listContents(currentPath);
-    let folders = list.folders;
-    let files = list.objects;
-    
-    if(folders.length == 0 ){
-      folderEmpty = true;
-    }
+  try{
+    let folderEmpty = false
+    let newKey = `${newFolderPath}${folder.name}`
+    let newPath = newKey;
 
-    console.log("files",files);
+    while(!folderEmpty){
+      let list = await listContents(currentPath, false);
+      let folders = list.folders;
+      let files = list.objects;
+      
+      if(folders.length == 0 ){
+        folderEmpty = true;
+      }
 
-    for(let i=0;i<files.length;i++){
-      const data = await s3Client.send(
-        new CopyObjectCommand({
-          Bucket: process.env.BUCKET_NAME,
-          CopySource: `${process.env.BUCKET_NAME}/${files[i].path}`,
-          Key: `${newPath}${files[i].name}`,
-      }))
+      console.log("files",files);
 
-      if(data.CopyObjectResult){
+      for(let i=0;i<files.length;i++){
         const data = await s3Client.send(
-          new DeleteObjectCommand({
+          new CopyObjectCommand({
             Bucket: process.env.BUCKET_NAME,
-            Key: `${files[i].path}`,
+            CopySource: `${process.env.BUCKET_NAME}/${files[i].path}`,
+            Key: `${newPath}${files[i].name}`,
         }))
+
+        if(data.$metadata.httpStatusCode == 200){
+          const data = await s3Client.send(
+            new DeleteObjectCommand({
+              Bucket: process.env.BUCKET_NAME,
+              Key: `${files[i].path}`,
+          }))
+        }
+      }
+
+      for(let j=0;j<folders.length;j++){
+        if(folders[j] == undefined){
+          break;
+        }
+        currentPath = folders[j].path;
+
+        newKey = `${newPath}${folders[j].name}`
+        newPath = newKey;
+
+        console.log("newKey",newKey);
+        let cif = await createNewFolder( currentPath,newKey);
       }
     }
-
-    for(let j=0;j<folders.length;j++){
-      if(folders[j] == undefined){
-        break;
-      }
-      currentPath = folders[j].path;
-
-      newKey = `${newPath}${folders[j].name}`
-      newPath = newKey;
-
-      console.log("newKey",newKey);
-      let cif = await createNewFolder( currentPath,newKey);
-    }
-
-    
-
-
-  
+  }catch(err){
+    console.log("Error", err);
   }
 
 }
@@ -273,7 +278,7 @@ export const uploadFile = (file, prefixPart,setReload) => {
   }
 }
 
-export const deleteFile = (filename,prefixPart,setReload) => {
+export const deleteFile = async(filename,prefixPart,setReload) => {
   const prefix = `${defaultPrefix}${prefixPart}`
   try {
     const data = s3Client.send(
@@ -343,28 +348,27 @@ export const createFolderIfNotExist = (foldername,prefix,setReload) => {
   }
 }
 
-export const emptyBucket = async(foldername,prefixPart,setReload) => {
+export const emptyBucket = async(foldername,prefixPart,setReload, internal=false) => {
   
-  const prefix = `${defaultPrefix}${prefixPart}`
-  /*
-  let list =  await s3Client.send(
-    new ListObjectsV2Command({
-      Bucket: process.env.BUCKET_NAME,
-      Prefix: `${prefix}${foldername}`,
-      Delimiter: "/",
-    })
-  )
-  */
-  let list = await listContents(`${prefix}${foldername}`);
+  let prefix = ''
+  if(!internal){
+    prefix = `${defaultPrefix}${prefixPart}`
+  }else{
+    prefix = `${prefixPart}`
+  }
+  let list = await listContents(`${prefix}${foldername}`,false);
 
+  console.log("list",`${prefix}${foldername}`);
+  
   let folders = list.folders;
   let files = list.objects;
 
   if(folders.length != 0){
     for(let i=0;i<folders.length;i++){
-      emptyBucket('',`${folders[i].path}`,setReload);
+      await emptyBucket('',`${folders[i].path}`,setReload,true);
     }
   }
+
   if(files.length != 0){
 
     for(let i=0;i<files.length;i++){
@@ -380,6 +384,8 @@ export const emptyBucket = async(foldername,prefixPart,setReload) => {
         alert(`Error deleting ${files[i].path}`);
       }
     }
-    setReload(true);
+    
   }
+  setReload(true);
 }
+

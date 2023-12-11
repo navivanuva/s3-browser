@@ -21,7 +21,9 @@ export default function NewFolderDialog({isOpen,onClose,prefix,setReload}){
 	
 	const onNewFolderModalConfirm = () => {
 		createFolderIfNotExist(folderName,prefix,setReload);
+    
 		onClose();
+    setFolderName("");
 	}
 
 	return(
