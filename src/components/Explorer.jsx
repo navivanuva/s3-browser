@@ -30,7 +30,7 @@ import { AddIcon, CloseIcon, EditIcon } from "@chakra-ui/icons";
 import DeleteDialog from "./DialogDelete";
 import NewFolderDialog from "./DialogNewFolder";
 import DialogRenameFileAndFolder from "./DialogRenameFile";
-
+import axios  from "axios";
 
 export default function Explorer() {
 
@@ -49,6 +49,9 @@ export default function Explorer() {
     <Box maxW="5xl" m={3} mt={1}>
 
       <VStack alignItems="left">
+        <Navigation prefix={prefix} />
+        <Listing prefix={prefix} reload={reload} setReload={setReload} />
+        <hr style={{marginBottom : 20}}></hr>
         <Box display={"flex"} alignItems={"center"}>
           <Box flexGrow={1}>
             <input width={"100%"} type="file" onChange={handleFileChange} />
@@ -57,9 +60,6 @@ export default function Explorer() {
             <Button colorScheme="blue" onClick={(e)=> {e.preventDefault(); uploadFile(file,prefix,setReload)}}>Upload</Button>
           </Box>
         </Box>
-        <hr style={{marginBottom : 20}}></hr>
-        <Navigation prefix={prefix} />
-        <Listing prefix={prefix} reload={reload} setReload={setReload} />
       </VStack>
     </Box>
   );
@@ -117,7 +117,19 @@ function Listing({ prefix, reload,setReload}) {
 
   const [itemName, setItemName] = useState("");
 
-  
+  const [testVar, setTestVar] = useState("");
+
+  useEffect(() => {
+    
+    const load = async () => {
+     //const response = await axios.get("http://localhost:8000/api/admin/get_aws_credentials/");
+      
+      //console.log("response",response);
+    }
+
+    load();
+    
+},[])
 
   const onOpenModalDelete = (itemName,isFile) => { 
 
