@@ -74,8 +74,19 @@ export const createPresignedUrl = async (filename, prefixPart) => {
     //get filename extension
     let fileExtension = filename.split('.').pop();
     let contentType = "image/png";
-    if(fileExtension === "pdf"){
+
+    if(fileExtension == "jpg" || fileExtension == "jpeg"){
+      contentType = "image/jpeg"
+    }
+
+    else if(fileExtension === "pdf"){
       contentType = "application/pdf";
+    }
+    else if(fileExtension == "docx"){
+      contentType = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    }
+    else if(fileExtension == "xlsx"){
+      contentType = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     }
 
     const getObjectParams = {
